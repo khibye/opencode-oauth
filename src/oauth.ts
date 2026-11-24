@@ -5,6 +5,7 @@ import type {
 } from "@opencode/plugin/effect/integration"
 import { Deferred, Effect, Option, Schema, type SchemaIssue, SchemaTransformation, type Scope } from "effect"
 import { createServer, type ServerResponse } from "node:http"
+import { isAbsolute } from "node:path"
 import { deadline, explain, type Failure, fetchJSON } from "./fetch.js"
 import { endpointProblem, issuerProblem, resourceProblem, urlProblem } from "./url.js"
 
@@ -21,6 +22,12 @@ const OptionsSchema = Schema.Struct({
   authorizationParams: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   searchURL: Schema.optional(Schema.NonEmptyString),
   discoverModels: Schema.optional(Schema.Boolean),
+  // Managed config: where the organization's copy is, which key of it is
+  // OpenCode's, where OpenCode reads managed config, and how often to check.
+  managedSettingsURL: Schema.optional(Schema.NonEmptyString),
+  managedSettingsKey: Schema.optional(Schema.NonEmptyString),
+  managedDirectory: Schema.optional(Schema.NonEmptyString),
+  managedPollSeconds: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 10, maximum: 86_400 }))),
 })
 export type Options = typeof OptionsSchema.Type
 
@@ -85,6 +92,10 @@ export function parseOptions(input: unknown): Options {
   check("authorizationEndpoint", options.authorizationEndpoint, endpointProblem)
   check("tokenEndpoint", options.tokenEndpoint, endpointProblem)
   check("searchURL", options.searchURL, urlProblem)
+  check("managedSettingsURL", options.managedSettingsURL, urlProblem)
+  if (options.managedDirectory !== undefined && !isAbsolute(options.managedDirectory)) {
+    throw new Error("managedDirectory must be an absolute path")
+  }
   if (options.issuer !== undefined) {
     if (options.authorizationEndpoint !== undefined || options.tokenEndpoint !== undefined) {
       throw new Error("set issuer, or authorizationEndpoint and tokenEndpoint, not both")

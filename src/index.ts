@@ -1,6 +1,7 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect } from "effect"
 import { checkHost } from "./host.js"
+import { enforceManaged, systemDirectory } from "./managed.js"
 import { discoverModels } from "./models.js"
 import { parseOptions, registration } from "./oauth.js"
 import { search } from "./search.js"
@@ -21,6 +22,14 @@ export default Plugin.define({
         editor.method.remove(options.provider, { type: "key" })
       })
       if (options.discoverModels !== false) yield* discoverModels(ctx, options.provider)
+      if (options.managedSettingsURL !== undefined) {
+        yield* enforceManaged(ctx, options.provider, {
+          settingsURL: options.managedSettingsURL,
+          key: options.managedSettingsKey ?? "opencode",
+          directory: options.managedDirectory ?? systemDirectory(),
+          pollMs: (options.managedPollSeconds ?? 120) * 1000,
+        })
+      }
       const searchURL = options.searchURL
       if (searchURL === undefined) return
       // Not made the default: a plugin's choice would hide the one the user makes

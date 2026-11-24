@@ -106,11 +106,15 @@ Pinning a version (`opencode-oauth@<version>`) turns update checks off.
 | `authorizationParams` | no | Extra parameters for the authorization request, such as `{ "audience": "https://llm.example.com" }` for a server that picks the access token's audience from one. It cannot set `resource`, or replace the parameters the grant sets itself. |
 | `searchURL` | no | A SearXNG search endpoint that accepts the same access token, such as `https://search.example.com/search`. See below. |
 | `discoverModels` | no | `false` stops the plugin reading the provider's `/models`: it adds no models and takes no context sizes. |
+| `managedSettingsURL` | no | An endpoint that serves the organization's settings with the same access token, such as `https://llm.example.com/claude_code_gateway/managed/settings`. See below. |
+| `managedSettingsKey` | no | The key of OpenCode's part of the served settings. Defaults to `opencode`. |
+| `managedDirectory` | no | An absolute path to write the managed config to. Defaults to the directory OpenCode reads it from. |
+| `managedPollSeconds` | no | How often to check for new settings, from 10 to 86400. Defaults to 120. |
 
 An option not listed here, such as a misspelled one, stops the plugin loading,
 and `/plugins` names it.
 
-Plain `http` is accepted for `issuer`, the endpoints and `searchURL` only on
+Plain `http` is accepted for `issuer`, the endpoints, `searchURL` and `managedSettingsURL` only on
 `127.0.0.1` or `[::1]`, and models are listed only from a provider `baseURL`
 that follows the same rule. Each of these URLs needs a host, and may not carry
 a user name, password or whitespace; the endpoints may not have a fragment, and
@@ -133,6 +137,27 @@ spreads searches across every web search provider it has.
 
 The SearXNG instance must allow JSON output (`json` in `search.formats` in its
 `settings.yml`), and whatever is in front of it must accept the access token.
+
+### Managed config from the server (proof of concept)
+
+With `managedSettingsURL`, the plugin fetches `{ "checksum", "settings" }` from
+that endpoint, which is the shape LiteLLM's Claude Code gateway serves, and
+writes `settings.opencode` as OpenCode's managed config: `opencode.json` and
+`opencode.jsonc`, with the same content, in `/etc/opencode` on Linux,
+`/Library/Application Support/opencode` on macOS or `C:\ProgramData\opencode`
+on Windows. OpenCode gives that config precedence over every other layer.
+The plugin writes both files because OpenCode reads both from that directory.
+
+It fetches at start, after a sign-in, every `managedPollSeconds`, and as soon as
+a file in that directory changes, so an edited or added file is replaced. Each
+model request to the provider carries an `x-org-policy` header with the checksum
+of the settings written, or `none` when they could not be written, so the server
+can refuse a client that does not run them.
+
+The user running OpenCode needs write access to that directory, which on Linux
+and macOS takes a one-time `sudo`. An administrator of the machine can still
+bypass this; it shows the server which clients run the settings, and does not
+stop a determined user.
 
 ## What to expect
 
